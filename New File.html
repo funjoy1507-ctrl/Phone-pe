@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Advanced Wallet QR System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+<style>
+body{font-family:Arial;margin:0;background:#f2f2f2}
+.header{background:#5f259f;color:#fff;padding:15px;text-align:center;font-size:20px}
+.container{padding:15px}
+.card{background:#fff;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 2px 5px rgba(0,0,0,.1)}
+input,button{width:100%;padding:10px;margin-top:8px;border-radius:5px;border:1px solid #ccc}
+button{background:#5f259f;color:#fff;border:none}
+video{width:100%;border-radius:10px}
+.success{color:green;font-weight:bold}
+.transaction{border-bottom:1px solid #eee;padding:5px 0;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="header">Advanced Demo Wallet</div>
+
+<div class="container">
+
+<div class="card">
+<h3>Login</h3>
+<input type="text" id="username" placeholder="Enter Name">
+<button onclick="login()">Login</button>
+</div>
+
+<div id="walletSection" style="display:none">
+
+<div class="card">
+<h3 id="welcome"></h3>
+<p><b>Balance: ₹ <span id="balance">1000</span></b></p>
+</div>
+
+<div class="card">
+<h3>Scan QR (Camera)</h3>
+<video id="video" playsinline></video>
+<button onclick="startCamera()">Start Camera</button>
+<button onclick="stopCamera()">Stop Camera</button>
+<p id="scanStatus"></p>
+</div>
+
+<div class="card">
+<h3>Upload QR Image</h3>
+<input type="file" id="qrImage" accept="image/*">
+</div>
+
+<div class="card">
+<h3>Send Money</h3>
+<input type="text" id="receiver" placeholder="Receiver Name">
+<input type="number" id="amount" placeholder="Amount">
+<button onclick="sendMoney()">Send Money</button>
+<p class="success" id="msg"></p>
+</div>
+
+<div class="card">
+<h3>Transaction History</h3>
+<div id="history"></div>
+</div>
+
+</div>
+</div>
+
+<script>
+let walletBalance=1000;
+let currentUser="";
+let video=document.getElementById("video");
+let canvas=document.createElement("canvas");
+let ctx=canvas.getContext("2d");
+let scanning=false;
+let stream;
+
+function login(){
+let name=document.getElementById("username").value;
+if(!name){alert("Enter Name");return;}
+currentUser=name;
+document.getElementById("walletSection").style.display="block";
+document.getElementById("welcome").innerText="Welcome, "+name;
+}
+
+async function startCamera(){
+try{
+stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+video.srcObject=stream;
+video.play();
+scanning=true;
+scanFrame();
+}catch(e){
+alert("Camera blocked or HTTPS required");
+}
+}
+
+function stopCamera(){
+scanning=false;
+if(stream){
+stream.getTracks().forEach(track=>track.stop());
+}
+}
+
+function scanFrame(){
+if(!scanning) return;
+canvas.width=video.videoWidth;
+canvas.height=video.videoHeight;
+ctx.drawImage(video,0,0,canvas.width,canvas.height);
+let imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+let code=jsQR(imageData.data,imageData.width,imageData.height);
+if(code){
+document.getElementById("receiver").value=code.data;
+document.getElementById("scanStatus").innerText="QR Scanned: "+code.data;
+stopCamera();
+return;
+}
+requestAnimationFrame(scanFrame);
+}
+
+document.getElementById("qrImage").addEventListener("change",function(e){
+let file=e.target.files[0];
+if(!file)return;
+let reader=new FileReader();
+reader.onload=function(){
+let img=new Image();
+img.onload=function(){
+canvas.width=img.width;
+canvas.height=img.height;
+ctx.drawImage(img,0,0);
+let imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+let code=jsQR(imageData.data,imageData.width,imageData.height);
+if(code){
+document.getElementById("receiver").value=code.data;
+alert("QR Scanned: "+code.data);
+}else{
+alert("QR not detected");
+}
+}
+img.src=reader.result;
+}
+reader.readAsDataURL(file);
+});
+
+function generateUTR(){
+return "UTR"+Math.floor(Math.random()*1000000000);
+}
+
+function sendMoney(){
+let receiver=document.getElementById("receiver").value;
+let amount=parseInt(document.getElementById("amount").value);
+if(!receiver||!amount){alert("Enter valid details");return;}
+if(amount>walletBalance){alert("Insufficient Balance");return;}
+walletBalance-=amount;
+document.getElementById("balance").innerText=walletBalance;
+let utr=generateUTR();
+let date=new Date().toLocaleString();
+document.getElementById("history").innerHTML+=
+"<div class='transaction'>Sent ₹"+amount+" to "+receiver+
+"<br>UTR: "+utr+"<br>"+date+"</div>";
+document.getElementById("msg").innerText="Payment Successful! UTR: "+utr;
+}
+</script>
+
+</body>
+</html>
